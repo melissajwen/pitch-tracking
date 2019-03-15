@@ -3,7 +3,7 @@ import numpy
 from scipy.io.wavfile import read
 
 
-def main(integration_window_size = 1024, f0_min = 100, f0_max = 500):
+def main(f0_min = 100, f0_max = 500):
     # Prompt user to input desired wav file
     user_input_directory = input("Please enter the wav file to process:\n")
     # Process desired wav file
@@ -24,10 +24,14 @@ def main(integration_window_size = 1024, f0_min = 100, f0_max = 500):
     print("tau_min: " + str(tau_min))
     print("tau_max: " + str(tau_max))
 
+    # Set some parameter values
+    t = 50000  # look at the audio from time index sample number 50000 onwards
+    W = 1024  # integration window size
+
     # Step 1: The auto-correlation (ACF) method
     # In this step, there are 3 correlation equations.
     # Equation 1 is the original correlation equation.
-    correlation = equation_1_acf(audio_data, integration_window_size, 50000, tau_max)
+    correlation = equation_1_acf(audio_data, W, t, tau_max)
     print(correlation)
     plt.plot(correlation)
     plt.title("Autocorrelation Function")
@@ -35,7 +39,7 @@ def main(integration_window_size = 1024, f0_min = 100, f0_max = 500):
     plt.ylabel("Correlation")
     plt.show()
     # Equation 2 and 3 are improvements to help with reducing errors.
-    correlation = equation_2_acf(audio_data, integration_window_size, 50000, tau_max)
+    correlation = equation_2_acf(audio_data, W, t, tau_max)
     print(correlation)
     plt.plot(correlation)
     plt.title("Autocorrelation Function")
@@ -45,7 +49,7 @@ def main(integration_window_size = 1024, f0_min = 100, f0_max = 500):
 
     # Step 2: The difference function
     # In this step,
-    difference_function = equation_6_difference_function(audio_data, 1024, tau_max)
+    difference_function = equation_6_difference_function(audio_data, W, t, tau_max)
     print(difference_function)
     plt.plot(difference_function)
     plt.title("Difference Function")
@@ -54,7 +58,7 @@ def main(integration_window_size = 1024, f0_min = 100, f0_max = 500):
     plt.show()
 
     # Step 3: The cumulative mean normalized difference function
-    cmndf = equation_8_cumulative_mean_normalized_difference_function(difference_function, 1024, tau_max)
+    cmndf = equation_8_cumulative_mean_normalized_difference_function(difference_function, W, tau_max)
     print(cmndf)
     plt.plot(cmndf)
     plt.title("Cumulative Mean Normalized Difference Function")
@@ -105,7 +109,7 @@ def equation_2_acf(x, W, t, tau_max):
     return correlation
 
 
-def equation_6_difference_function(x, W, tau_max):
+def equation_6_difference_function(x, W, t, tau_max):
     """
     Compute the difference function of audio data x. This is equation (6) in the YIN article.
 
@@ -115,7 +119,6 @@ def equation_6_difference_function(x, W, tau_max):
     :return: difference function
     :rtype: list
     """
-    t = 50000
     difference_function = [0] * tau_max
     for tau in range(1, tau_max):
         for j in range(t, t+W):
