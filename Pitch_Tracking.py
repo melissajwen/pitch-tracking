@@ -66,6 +66,22 @@ def main(f0_min = 100, f0_max = 500):
     plt.ylabel("difference")
     plt.show()
 
+    # Get fundamental period of a window based on the cmndf
+    threshold = 600
+    fundamental_period = detect_pitch(cmndf, tau_min, tau_max, threshold)
+    print("fundamental_period: " + fundamental_period)
+
+    pitch = 0
+    # If a pitch is detected
+    if fundamental_period != 0:
+        pitch = float(sample_rate / fundamental_period)
+        harmonic_rate = cmndf[fundamental_period]
+    else:
+        harmonic_rate = min(cmndf)
+
+    print("pitch: " + str(pitch))
+    print("harmonic_rate: " + str(harmonic_rate))
+
 
 def equation_1_acf(x, W, t, tau_max):
     """
@@ -136,7 +152,6 @@ def equation_8_cumulative_mean_normalized_difference_function(difference_functio
     :return: cumulative mean normalized difference function
     :rtype: list
     """
-
     cmndf = [0] * tau_max
     for tau in range(0, tau_max):
         if tau == 0:
@@ -146,6 +161,28 @@ def equation_8_cumulative_mean_normalized_difference_function(difference_functio
                 accumulated_value = numpy.cumsum(difference_function[j:tau])[0]
                 cmndf[tau] = difference_function[tau] / ((1 / tau) * accumulated_value)
     return cmndf
+
+
+def detect_pitch(cmndf, tau_min, tau_max, threshold):
+    """
+    Compute the fundamental period of a window based on the cumulative mean normalized difference function
+
+    :param cmndf: cumulative mean normalized difference function
+    :param tau_min: minimum period
+    :param tau_max: maximum period
+    :param threshold: harmonicity threshold to determine if it is necessary to compute pitch frequency
+    :return: fundamental period if there is values under threshold, else 0
+    :rtype: float
+    """
+    tau = tau_min
+    while tau < tau_max:
+        if cmndf[tau] < threshold:
+            while tau + 1 < tau_max and cmndf[tau + 1] < cmndf[tau]:
+                tau += 1
+            return tau
+        tau += 1
+
+    return 0  # if no pitch detected
 
 
 def load_wav_data_in_float(audio_file_directory):
