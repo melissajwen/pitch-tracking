@@ -3,7 +3,7 @@ import numpy
 from scipy.io.wavfile import read
 
 
-def main(f0_min = 100, f0_max = 500):
+def main(f0_min=100, f0_max=500):
     # Prompt user to input desired wav file
     user_input_directory = input("Please enter the wav file to process:\n")
     # Process desired wav file
@@ -69,7 +69,7 @@ def main(f0_min = 100, f0_max = 500):
     # Get fundamental period of a window based on the cmndf
     threshold = 600
     fundamental_period = detect_pitch(cmndf, tau_min, tau_max, threshold)
-    print("fundamental_period: " + fundamental_period)
+    print("fundamental_period: " + str(fundamental_period))
 
     pitch = 0
     # If a pitch is detected
@@ -153,13 +153,13 @@ def equation_8_cumulative_mean_normalized_difference_function(difference_functio
     :rtype: list
     """
     cmndf = [0] * tau_max
-    for tau in range(0, tau_max):
-        if tau == 0:
-            cmndf[tau] = 1
-        else:
-            for j in range(1, tau):
-                accumulated_value = numpy.cumsum(difference_function[j:tau])[0]
-                cmndf[tau] = difference_function[tau] / ((1 / tau) * accumulated_value)
+    cmndf[0] = 1.0
+    for tau in range(1, tau_max):
+        accumulated_value = 0
+        for j in range(1, tau+1):
+            accumulated_value += difference_function[j]
+        accumulated_value = (1 / tau) * accumulated_value
+        cmndf[tau] = difference_function[tau] / accumulated_value
     return cmndf
 
 
