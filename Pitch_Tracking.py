@@ -40,7 +40,6 @@ def main(f0_min=100, f0_max=500):
     plot(correlation, "Autocorrelation Function", "lag (samples)", "Correlation")
 
     # Step 2: The difference function
-    # This step replaces Step 1.
     difference_function = equation_6_difference_function(audio_data, t, tau_max)
     plot(difference_function, "Difference Function", "lag (samples)", "difference")
 
@@ -48,8 +47,8 @@ def main(f0_min=100, f0_max=500):
     cmndf = equation_8_cumulative_mean_normalized_difference_function(difference_function, tau_max)
     plot(cmndf, "Cumulative Mean Normalized Difference Function", "lag (samples)", "difference")
 
-    # Get fundamental period of a window based on the cmndf
-    fundamental_period = detect_pitch(cmndf, tau_min, tau_max, THRESHOLD)
+    # Step 4: Absolute threshold
+    fundamental_period = absolute_threshold(cmndf, tau_min, tau_max, THRESHOLD)
     print("fundamental_period: " + str(fundamental_period))
 
     pitch = 0
@@ -78,7 +77,7 @@ def plot(data, title, x_label, y_label):
     plt.title(title)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.show()
+    # plt.show()
 
 
 def equation_1_acf(x, t, tau_max):
@@ -158,9 +157,9 @@ def equation_8_cumulative_mean_normalized_difference_function(difference_functio
     return cmndf
 
 
-def detect_pitch(cmndf, tau_min, tau_max, threshold):
+def absolute_threshold(cmndf, tau_min, tau_max, threshold):
     """
-    Compute the fundamental period of a window based on the cumulative mean normalized difference function
+    Compute the fundamental period of a window based on the cumulative mean normalized difference function.
 
     :param cmndf: cumulative mean normalized difference function
     :param tau_min: minimum period
@@ -172,12 +171,15 @@ def detect_pitch(cmndf, tau_min, tau_max, threshold):
     tau = tau_min
     while tau < tau_max:
         if cmndf[tau] < threshold:
+            # Find the minimum below this threshold, not just the first value below the threshold
             while tau + 1 < tau_max and cmndf[tau + 1] < cmndf[tau]:
                 tau += 1
+
             return tau
         tau += 1
 
-    return 0  # if no pitch detected
+    # Return the global minimum if the threshold is too low to detect period
+    return cmndf.index(min(cmndf))
 
 
 main()
