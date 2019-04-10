@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import interp1d
 from scipy.io.wavfile import read
 
 FILENAME = "oboe_a4.wav"  # wav file to test
@@ -44,8 +45,12 @@ def main():
     cmndf = equation_8_cumulative_mean_normalized_difference_function(difference_function, tau_min, tau_max)
     plot(cmndf, "Cumulative Mean Normalized Difference Function", "lag (samples)", "difference")
 
+    # Step 5: Interpolate minimum
+    cmndf_interp = diff_funct_w_interp(audio_data, t, tau_min, tau_max)
+    plot(cmndf_interp, "difference with interpolation", "lag (samples)", "difference")
+
     # Step 4: Absolute threshold
-    fundamental_period = absolute_threshold(cmndf, THRESHOLD, tau_min, tau_max)
+    fundamental_period = absolute_threshold(cmndf_interp, THRESHOLD, tau_min, tau_max)
     print("fundamental_period: " + str(fundamental_period))
 
     # Test to see if Steps 1-4 work
@@ -179,6 +184,26 @@ def absolute_threshold(cmndf, threshold, tau_min, tau_max):
 
     # Return the global minimum if the threshold is too low to detect period
     return cmndf.index(min(cmndf))
+
+def diff_funct_w_interp(x, t, tau_min, tau_max):
+    """
+    Compute the difference function of audio data x, with 1D interpolation simulating double rate.
+
+    :param x: audio data
+    :param t: time index
+    :param tau_min: lower bound on range of taus
+    :param tau_max: upper bound on range of taus
+    :return: difference function
+    :rtype: list
+    """
+    difference_function = [0] * tau_max
+    x_axis = list(range(1,len(x)+1))
+    val_adjusted = interp1d(x_axis, x, kind='quadratic')
+    for tau in range(tau_min, tau_max):
+        for j in range(t*2, (t + W)*2):
+            tmp = (val_adjusted.__call__(j/2) - val_adjusted.__call__(j/2 + tau))
+            difference_function[tau] += tmp * tmp
+    return difference_function
 
 
 main()
