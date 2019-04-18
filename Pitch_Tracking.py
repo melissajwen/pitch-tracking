@@ -6,7 +6,7 @@ from scipy.io.wavfile import read
 FILENAME = "four_prosody_mandarin_mono.wav"  # wav file to test
 W = 1024  # integration window size
 W_STEP = 512
-F0_MIN = 100  # lower bound of human voiced speech f0
+F0_MIN = 50  # lower bound of human voiced speech f0
 F0_MAX = 500  # upper bound of human voiced speech f0
 THRESHOLD = 0.1  # absolute threshold
 SMOOTH_THRESHOLD = 30  # The threshold was determined by experiments to be 30Hz
@@ -22,7 +22,7 @@ def main():
     # Plot the input audio data
     plot(audio_data, "Audio Data", "Time (samples)", "Amplitude")
 
-    # Establish the beginning time index to remove noise
+    # Establish the beginning time index to remove noise (used only for Autocorrelation Function)
     t = 50000
 
     # Calculation for the range of tau
@@ -42,8 +42,7 @@ def main():
     # Set up for f0 contour
     signal_length = len(audio_data)
     # Time values for each analysis window
-    time_scale = range(0, signal_length - W, W_STEP)  # worked (to be removed)
-    times = [t/float(sample_rate) for t in time_scale]  # worked (to be removed)
+    time_scale = range(0, signal_length - W, W_STEP)
     # Split up the signal into multiple window frames
     frames = [audio_data[t:t + W] for t in time_scale]
 
@@ -59,23 +58,30 @@ def main():
         # YIN computation
         # Step 2: The difference function
         difference_function = equation_6_difference_function_fastest(frame, t, tau_max)
-        #plot(difference_function, "Difference Function", "lag (samples)", "difference")
+        # plot(difference_function, "Difference Function", "lag (samples)", "difference")
 
         # Step 3: The cumulative mean normalized difference function (cmndf)
         cmndf = equation_8_cumulative_mean_normalized_difference_function(difference_function, W, tau_max)
-        #plot(cmndf, "Cumulative Mean Normalized Difference Function", "lag (samples)", "difference")
+        # plot(cmndf, "Cumulative Mean Normalized Difference Function", "lag (samples)", "difference")
 
         # Step 4: Absolute threshold
         fundamental_period = absolute_threshold(cmndf, THRESHOLD, tau_min, tau_max)
-        #print("fundamental_period: " + str(fundamental_period))
+
+        better_fundamental_period = 0
+        if fundamental_period != 0:
+            # Step 5: Parabolic interpolation
+            better_fundamental_period = parabolic_interpolation(cmndf, fundamental_period)
+
+            # Step 6: Best local estimate
+            best_local_period = best_local_estimate(cmndf, fundamental_period)
 
         # Gather results
         if np.argmin(cmndf) > tau_min:
             argmins[i] = float(sample_rate / np.argmin(cmndf))
         # If a pitch is found...
         if fundamental_period != 0:
-            pitches[i] = float(sample_rate / fundamental_period)
-            harmonic_rates[i] = cmndf[fundamental_period]
+            pitches[i] = float(sample_rate / best_local_period)
+            harmonic_rates[i] = cmndf[best_local_period]
         else:
             # Return the global minimum if the threshold is too low to detect period
             harmonic_rates[i] = cmndf.index(min(cmndf))
@@ -92,7 +98,6 @@ def plot(data, title, x_label, y_label):
     :param x_label: label on x axis
     :param y_label: label on y axis
     """
-    print(data)
     plt.plot(data)
     plt.title(title)
     plt.xlabel(x_label)
@@ -226,6 +231,81 @@ def absolute_threshold(cmndf, threshold, tau_min, tau_max):
 
     # If no pitch is detected...
     return 0
+
+
+def parabolic_interpolation(cmndf, fundamental_period):
+    """
+    Compute a better fundamental period based off the previous estimated one
+
+    :param cmndf: cumulative mean normalized difference function
+    :param fundamental_period: the estimated fundamental period
+    :return: same or better fundamental period
+    """
+    if fundamental_period < 1:
+        x0 = fundamental_period
+    else:
+        x0 = fundamental_period - 1
+
+    if fundamental_period + 1 < len(cmndf):
+        x2 = fundamental_period + 1
+    else:
+        x2 = fundamental_period
+
+    if x0 == fundamental_period:
+        if cmndf[fundamental_period] <= cmndf[x2]:
+            return fundamental_period
+        else:
+            return x2
+
+    if x2 == fundamental_period:
+        if cmndf[fundamental_period] <= cmndf[x0]:
+            return fundamental_period
+        else:
+            return x0
+
+    s0 = cmndf[x0]
+    s1 = cmndf[fundamental_period]
+    s2 = cmndf[x2]
+    return int(fundamental_period + 0.5 * (s2 - s0) / (2 * s1 - s2 - s0))
+
+
+def best_local_estimate(cmndf, fundamental_period):
+    """
+    Compute the best local estimate
+
+    :param cmndf: cumulative mean normalized difference function
+    :param fundamental_period: the estimated fundamental period
+    :return: same or better fundamental period
+    """
+    # Search range must be within 0.0 ~ 1.0
+    search_range = 0.2
+    i = fundamental_period + 1
+    n = len(cmndf)
+    k = cmndf[fundamental_period]
+    initial_k = cmndf[fundamental_period]
+    smallest_value = fundamental_period
+
+    while i < n:
+        if (fundamental_period / i) > search_range:
+            break
+        if cmndf[i] < k:
+            k = cmndf[i]
+            smallest_value = i
+            break
+        i += 1
+
+    if k == initial_k:
+        i = fundamental_period - 1
+        while i > 0:
+            if (i / fundamental_period) < (1 - search_range):
+                break
+            if cmndf[i] < k:
+                k = cmndf[i]
+                smallest_value = i
+                break
+            i -= 1
+
+    return smallest_value
 
 
 main()
