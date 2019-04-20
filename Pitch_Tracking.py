@@ -2,14 +2,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io.wavfile import read
 
-#FILENAME = "oboe_a4.wav"  # wav file to test
-FILENAME = "four_prosody_mandarin_mono.wav"  # wav file to test
+FILENAME = "four_prosody_2_mono.wav"  # wav file to test
 W = 1024  # integration window size
-W_STEP = 512
+W_STEP = 512  # window step length
 F0_MIN = 50  # lower bound of human voiced speech f0
 F0_MAX = 500  # upper bound of human voiced speech f0
 THRESHOLD = 0.1  # absolute threshold
-SMOOTH_THRESHOLD = 30  # The threshold was determined by experiments to be 30Hz
+SMOOTHING_MARGIN = F0_MIN * 0.20  # +20% range from the lower bound f0
 
 
 def main():
@@ -23,12 +22,11 @@ def main():
     plot(audio_data, "Audio Data", "Time (samples)", "Amplitude")
 
     # Establish the beginning time index to remove noise (used only for Autocorrelation Function)
-    t = 50000
+    t = 0
 
     # Calculation for the range of tau
     tau_min = int(sample_rate / F0_MAX)
     tau_max = int(sample_rate / F0_MIN)
-    # print("tau_min: " + str(tau_min) + "\n" + "tau_max: " + str(tau_max))
 
     # Step 1: The auto-correlation (ACF) method
     # Equation (1) is the original correlation equation
@@ -87,6 +85,58 @@ def main():
             harmonic_rates[i] = cmndf.index(min(cmndf))
 
     plot(pitches, "Pitch Contour", "Window number", "Pitch (Hz)")
+    smoothed_contour = smooth_pitch_contour(pitches)
+    plot(smoothed_contour, "Smoothed Pitch Contour", "Window number", "Pitch (Hz)")
+
+
+def smooth_pitch_contour(pitches):
+    """
+    Compute a smoothed pitch contour through noise omission and average values
+
+    :param pitches: The pitch contour
+    :return: Smoothed pitch contour
+    """
+    length_of_pitches = len(pitches)
+    smoothed_pitches = [0.0] * length_of_pitches
+    for i in range(0, length_of_pitches):
+        if pitches[i] > F0_MIN + SMOOTHING_MARGIN:
+            smoothed_pitches[i] = pitches[i]
+
+    # If there is a short burst in frequency, classify it as noise and cancel it
+    for i in range(0, length_of_pitches):
+        count = 0
+        if smoothed_pitches[i] != 0:
+            while smoothed_pitches[i+count] != 0:
+                count += 1
+
+            if count < 6:
+                for j in range(0, count):
+                    smoothed_pitches[i+j] = 0.0
+
+    for i in range(0, length_of_pitches - 1):
+        # If there is a big drop of about 35Hz, and it is not due to it
+        # being a value of 0, we even out the contour
+        if smoothed_pitches[i] - smoothed_pitches[i+1] >= 35:
+            if smoothed_pitches[i+1] != 0:
+                smoothed_pitches[i+1] = smoothed_pitches[i]
+
+    # Smooth out the pitch contour by assigning the average of the next 6 pitch points
+    range_for_smoothing = 6
+    for i in range(0,  length_of_pitches - range_for_smoothing):
+        if smoothed_pitches[i] != 0:
+            average_value_of_samples = 0
+            count = 0
+            for j in range(0, range_for_smoothing):
+                if smoothed_pitches[i+j] != 0:
+                    average_value_of_samples += smoothed_pitches[i+j]
+                    count += 1
+            if count > 0:
+                average_value_of_samples /= count
+
+                for j in range(0, count):
+                    smoothed_pitches[i+j] = average_value_of_samples
+
+    return smoothed_pitches
 
 
 def plot(data, title, x_label, y_label):
